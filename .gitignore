@@ -39,6 +39,7 @@ gen_mp4_422.py
 
 # Keep release checksums in source. Release zip files belong in GitHub Releases.
 !BK7258VideoConverter_v*.sha256.txt
+BK7258MobileConverter_android_*.sha256.txt
 
 # Misc
 .DS_Store
