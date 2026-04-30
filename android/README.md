@@ -35,11 +35,14 @@ Open the `android/` folder in Android Studio, then build `app`.
 Command-line build on a machine with Android SDK and Gradle:
 
 ```bat
-gradle -p android assembleDebug
+gradle -p android assembleRelease
 ```
 
 The GitHub Actions workflow `.github/workflows/android.yml` can also build a
-debug APK artifact.
+release APK artifact.
+
+The current prototype APK is slimmed for `arm64-v8a` Android devices only. This
+covers most modern Android phones. Old 32-bit-only phones need a separate build.
 
 ## Notes
 
