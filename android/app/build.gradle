@@ -10,8 +10,8 @@ android {
         applicationId "com.amortom.bk7258converter"
         minSdk 24
         targetSdk 35
-        versionCode 3
-        versionName "0.1.2"
+        versionCode 4
+        versionName "0.1.3"
     }
 
     flavorDimensions += "abi"
@@ -52,5 +52,5 @@ android {
 }
 
 dependencies {
-    implementation "io.github.jamaismagic.ffmpeg:ffmpeg-kit-main-full-gpl-16kb:6.1.4"
+    implementation "io.github.jamaismagic.ffmpeg:ffmpeg-kit-main-min-16kb:6.1.4"
 }

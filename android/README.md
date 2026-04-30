@@ -52,5 +52,5 @@ Android Studio Emulator on Windows.
   error. Use a larger qscale value, for example `4` or `5`, to reduce size.
 - This Android prototype should be validated with the physical terminal before
   publishing a customer APK.
-- FFmpegKit is GPL-based in this configuration; confirm licensing before
-  commercial distribution.
+- The Android prototype currently uses the FFmpegKit `min` package to keep APK
+  size down and avoid emulator-specific native library issues.

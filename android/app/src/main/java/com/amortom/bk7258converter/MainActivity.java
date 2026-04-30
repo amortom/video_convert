@@ -289,7 +289,7 @@ public class MainActivity extends Activity {
                     appendLog(done);
                     toast("Conversion complete");
                 });
-            } catch (Exception ex) {
+            } catch (Throwable ex) {
                 runOnUiThread(() -> {
                     setBusy(false);
                     statusView.setText("Failed");
