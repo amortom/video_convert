@@ -341,6 +341,8 @@ public class MainActivity extends Activity {
                         + " valid=" + info.valid
                         + " baseline=" + info.baseline
                         + " subsampling=" + info.subsampling
+                        + " sampling=Y" + info.yH + "x" + info.yV
+                        + "/C" + info.cH + "x" + info.cV
                         + " size=" + info.width + "x" + info.height);
             }
         }

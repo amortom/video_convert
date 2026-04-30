@@ -91,23 +91,44 @@ final class JpegInspector {
                     compPos += 3;
                 }
 
-                String subsampling = "unknown";
-                if (yH == 2 && yV == 1 && cH == 1 && cV == 1) {
-                    subsampling = "yuv422";
-                } else if (yH == 2 && yV == 2 && cH == 1 && cV == 1) {
-                    subsampling = "yuv420";
-                } else if (yH == 1 && yV == 1 && cH == 1 && cV == 1) {
-                    subsampling = "yuv444";
-                }
+                String subsampling = samplingName(yH, yV, cH, cV);
 
                 return new JpegInfo(true, marker == 0xc0, marker == 0xc2,
-                        width, height, precision, componentCount, subsampling, "");
+                        width, height, precision, componentCount, subsampling, "",
+                        yH, yV, cH, cV);
             }
 
             pos = segmentEnd;
         }
 
         return JpegInfo.invalid("missing SOF marker");
+    }
+
+    private static String samplingName(int yH, int yV, int cH, int cV) {
+        if (yH <= 0 || yV <= 0 || cH <= 0 || cV <= 0) {
+            return "unknown";
+        }
+
+        if (yH == cH && yV == cV) {
+            return "yuv444";
+        }
+        if (yH == cH * 2 && yV == cV) {
+            return "yuv422";
+        }
+        if (yH == cH * 2 && yV == cV * 2) {
+            return "yuv420";
+        }
+
+        // Some encoders scale all vertical sampling factors by 2. For example,
+        // FFmpeg may emit 4:2:2 as Y=2x2 and Cb/Cr=1x2.
+        if (yH / (double) cH == 2.0 && yV / (double) cV == 1.0) {
+            return "yuv422";
+        }
+        if (yH / (double) cH == 2.0 && yV / (double) cV == 2.0) {
+            return "yuv420";
+        }
+
+        return "unknown";
     }
 
     private static int u8(byte value) {
@@ -128,10 +149,15 @@ final class JpegInspector {
         final int componentCount;
         final String subsampling;
         final String reason;
+        final int yH;
+        final int yV;
+        final int cH;
+        final int cV;
 
         JpegInfo(boolean valid, boolean baseline, boolean progressive,
                  int width, int height, int precision, int componentCount,
-                 String subsampling, String reason) {
+                 String subsampling, String reason,
+                 int yH, int yV, int cH, int cV) {
             this.valid = valid;
             this.baseline = baseline;
             this.progressive = progressive;
@@ -141,10 +167,15 @@ final class JpegInspector {
             this.componentCount = componentCount;
             this.subsampling = subsampling;
             this.reason = reason;
+            this.yH = yH;
+            this.yV = yV;
+            this.cH = cH;
+            this.cV = cV;
         }
 
         static JpegInfo invalid(String reason) {
-            return new JpegInfo(false, false, false, 0, 0, 0, 0, "unknown", reason);
+            return new JpegInfo(false, false, false, 0, 0, 0, 0,
+                    "unknown", reason, -1, -1, -1, -1);
         }
     }
 }
