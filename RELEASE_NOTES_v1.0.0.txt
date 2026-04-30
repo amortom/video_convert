@@ -1,0 +1,15 @@
+BK7258VideoConverter v1.0.0
+===========================
+
+First customer-test release.
+
+Included:
+- Offline Windows GUI: BK7258VideoConverter.exe
+- Offline converter worker: BK7258ConverterWorker.exe
+- Output profile verified on terminal:
+  MP4 / MJPEG / Baseline JPEG / YUV422 / yuvj422p / 480x480 / 25fps / no audio
+
+Notes:
+- Keep the full extracted folder together.
+- Do not distribute only the main EXE.
+- Default settings are the recommended terminal-compatible settings.

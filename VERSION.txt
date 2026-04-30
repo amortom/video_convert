@@ -1,0 +1,13 @@
+BK7258VideoConverter
+Version: 1.0.0
+Release date: 2026-04-30
+
+Default terminal profile:
+- MP4 container
+- MJPEG video
+- Baseline JPEG, non-progressive
+- YUV 4:2:2 / yuvj422p
+- 480x480
+- 25fps default, 20-25fps supported
+- No audio
+- Max JPEG frame: 96KB

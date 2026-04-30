@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# PyInstaller build output
+build/
+build_worker/
+dist/
+dist_worker/
+*.spec.bak
+
+# Local generated folders
+BK7258VideoConverter/
+
+# Local scratch/backup scripts
+mp4_converter copy.py
+gen_mp4_422.py
+
+# Test and customer video files
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.jpg
+*.jpeg
+*.png
+
+# Keep the packaged customer release and checksum.
+!BK7258VideoConverter_v*.zip
+!BK7258VideoConverter_v*.sha256.txt
+
+# Local duplicate of latest release package
+BK7258VideoConverter.zip
+
+# Misc
+.DS_Store
+Thumbs.db
