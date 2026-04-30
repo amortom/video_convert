@@ -26,13 +26,10 @@ gen_mp4_422.py
 *.jpg
 *.jpeg
 *.png
+*.zip
 
-# Keep the packaged customer release and checksum.
-!BK7258VideoConverter_v*.zip
+# Keep release checksums in source. Release zip files belong in GitHub Releases.
 !BK7258VideoConverter_v*.sha256.txt
-
-# Local duplicate of latest release package
-BK7258VideoConverter.zip
 
 # Misc
 .DS_Store

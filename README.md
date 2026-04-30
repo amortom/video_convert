@@ -5,9 +5,10 @@ terminal-compatible `MP4(MJPEG)` format required by the BK7258 device.
 
 ## Customer Download
 
-Use the packaged offline release:
+Use the packaged offline release from GitHub Releases:
 
-- `BK7258VideoConverter_v1.0.0.zip`
+- https://github.com/amortom/video_convert/releases/tag/v1.0.0
+- Direct download: https://github.com/amortom/video_convert/releases/download/v1.0.0/BK7258VideoConverter_v1.0.0.zip
 - SHA256: see `BK7258VideoConverter_v1.0.0.sha256.txt`
 
 After downloading, extract the whole folder and run:
