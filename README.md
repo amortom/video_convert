@@ -62,7 +62,7 @@ An offline Android prototype is available under `android/`.
 
 Prototype APK pre-release:
 
-- https://github.com/amortom/video_convert/releases/tag/android-v0.1.1
+- https://github.com/amortom/video_convert/releases/tag/android-v0.1.2
 
 The mobile app uses FFmpegKit to extract `yuvj422p` JPEG frames, validates
 Baseline/YUV422/480x480 JPEG output, then writes the final MP4 container in-app
@@ -72,7 +72,8 @@ terminal-compatible Windows converter.
 Build with Android Studio or GitHub Actions:
 
 ```bat
-gradle -p android assembleRelease
+gradle -p android assembleArm64Release
+gradle -p android assembleX64Release
 ```
 
 ## Build Offline Release
