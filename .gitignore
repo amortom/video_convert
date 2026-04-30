@@ -11,6 +11,15 @@ dist/
 dist_worker/
 *.spec.bak
 
+# Android build output
+.gradle/
+local.properties
+android/.gradle/
+android/local.properties
+android/**/build/
+*.apk
+*.aab
+
 # Local generated folders
 BK7258VideoConverter/
 

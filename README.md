@@ -56,6 +56,21 @@ Run the GUI from source:
 python gui_converter.py
 ```
 
+## Android Prototype
+
+An offline Android prototype is available under `android/`.
+
+The mobile app uses FFmpegKit to extract `yuvj422p` JPEG frames, validates
+Baseline/YUV422/480x480 JPEG output, then writes the final MP4 container in-app
+with a `jpeg` sample entry. This keeps the phone output aligned with the
+terminal-compatible Windows converter.
+
+Build with Android Studio or GitHub Actions:
+
+```bat
+gradle -p android assembleDebug
+```
+
 ## Build Offline Release
 
 Build worker:
