@@ -60,6 +60,10 @@ python gui_converter.py
 
 An offline Android prototype is available under `android/`.
 
+Prototype APK pre-release:
+
+- https://github.com/amortom/video_convert/releases/tag/android-v0.1.0
+
 The mobile app uses FFmpegKit to extract `yuvj422p` JPEG frames, validates
 Baseline/YUV422/480x480 JPEG output, then writes the final MP4 container in-app
 with a `jpeg` sample entry. This keeps the phone output aligned with the
