@@ -141,13 +141,17 @@ class ConverterApp(CTk):
         
         # Item Icon and Text
         self.lbl_filename = ctk.CTkLabel(self.item_frame, text="", font=ctk.CTkFont(size=16, weight="bold"), text_color="#1E1E1E")
-        self.lbl_filename.grid(row=0, column=0, columnspan=2, padx=20, pady=(20, 5), sticky="w")
+        self.lbl_filename.grid(row=0, column=0, padx=20, pady=(20, 5), sticky="w")
         self.lbl_format = ctk.CTkLabel(self.item_frame, text="Target: MJPEG / 480x480 / YUV422", text_color="#6C757D", font=ctk.CTkFont(size=12))
-        self.lbl_format.grid(row=1, column=0, columnspan=2, padx=20, pady=(0, 20), sticky="w")
+        self.lbl_format.grid(row=1, column=0, padx=20, pady=(0, 20), sticky="w")
+        
+        # Delete / Remove button
+        self.btn_remove = ctk.CTkButton(self.item_frame, text="✕", width=32, height=32, corner_radius=16, fg_color="#E9ECEF", hover_color="#DEE2E6", text_color="#868E96", font=ctk.CTkFont(size=14, weight="bold"), command=self._remove_file)
+        self.btn_remove.grid(row=0, column=1, padx=(0, 10), pady=(15, 0), sticky="ne")
         
         # Big Red Action Button
         self.btn_start_convert = ctk.CTkButton(self.item_frame, text="Convert", font=ctk.CTkFont(size=14, weight="bold"), fg_color="#FF4D4F", hover_color="#E03131", text_color="white", width=120, height=40, command=self._start_convert)
-        self.btn_start_convert.grid(row=0, column=2, rowspan=2, padx=20)
+        self.btn_start_convert.grid(row=0, column=2, rowspan=2, padx=(0, 20))
         
         # Progress UI
         self.progress = ctk.CTkProgressBar(self.item_frame, mode="determinate", progress_color="#FF4D4F")
@@ -369,11 +373,25 @@ class ConverterApp(CTk):
             pass
         self.after(100, self._drain_log_queue)
         
+    def _remove_file(self):
+        self.input_file = None
+        self.output_file = None
+        self.item_frame.grid_forget()
+        self.progress.grid_forget()
+        self.lbl_status.grid_forget()
+        self.progress.set(0)
+        self.drop_center_ui.grid(row=1, column=0)
+        self.btn_start_convert.configure(state="normal", text="Convert", fg_color="#FF4D4F", hover_color="#E03131", command=self._start_convert)
+
     def _open_folder(self):
         if self.output_file:
-            folder = os.path.dirname(self.output_file)
-            if folder and os.path.isdir(folder):
-                subprocess.Popen(["explorer", folder])
+            norm = os.path.normpath(self.output_file)
+            if os.path.isfile(norm):
+                subprocess.Popen(["explorer", "/select,", norm])
+            else:
+                folder = os.path.dirname(norm)
+                if folder and os.path.isdir(folder):
+                    subprocess.Popen(["explorer", folder])
         self.btn_start_convert.configure(text="Convert", fg_color="#FF4D4F", hover_color="#E03131", command=self._start_convert)
 
 if __name__ == "__main__":
