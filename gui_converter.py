@@ -10,6 +10,12 @@ import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
+try:
+    import sv_ttk
+    HAS_SV_TTK = True
+except ImportError:
+    HAS_SV_TTK = False
+
 
 APP_VERSION = "1.0.0"
 APP_TITLE = f"BK7258 MP4(MJPEG) Converter v{APP_VERSION}"
@@ -23,18 +29,37 @@ TERMINAL_DEFAULT_MIN_QUALITY = 50
 PROGRESS_RE = re.compile(r"\((\d+)%\)")
 
 
+# ─── Color palette ────────────────────────────────────────────────────────────
+COLOR_BG         = "#f5f6fa"
+COLOR_CARD_BG    = "#ffffff"
+COLOR_ACCENT     = "#0078d4"
+COLOR_ACCENT_HOV = "#106ebe"
+COLOR_SUCCESS    = "#107c10"
+COLOR_DANGER     = "#d13438"
+COLOR_TEXT       = "#1a1a1a"
+COLOR_TEXT_SEC   = "#5f6368"
+COLOR_LOG_BG     = "#1e1e2e"
+COLOR_LOG_FG     = "#cdd6f4"
+COLOR_BORDER     = "#e0e0e0"
+
+
 class ConverterApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title(APP_TITLE)
-        self.geometry("780x620")
-        self.minsize(720, 560)
+        self.geometry("850x700")
+        self.minsize(780, 640)
+        self.configure(bg=COLOR_BG)
+
+        if HAS_SV_TTK:
+            sv_ttk.set_theme("light")
 
         self.log_queue = queue.Queue()
         self.worker = None
         self.output_path = None
 
         self._build_vars()
+        self._apply_styles()
         self._build_ui()
         self.after(100, self._drain_log_queue)
 
@@ -52,98 +77,194 @@ class ConverterApp(tk.Tk):
         self.max_size_var = tk.StringVar()
         self.status_var = tk.StringVar(value="Ready")
 
+    def _apply_styles(self):
+        style = ttk.Style(self)
+        style.configure("Card.TFrame", background=COLOR_CARD_BG)
+        style.configure("CardInner.TFrame", background=COLOR_CARD_BG)
+        style.configure("Header.TLabel", font=("Segoe UI", 18, "bold"),
+                        foreground=COLOR_TEXT)
+        style.configure("Subtitle.TLabel", font=("Segoe UI", 9),
+                        foreground=COLOR_TEXT_SEC)
+        style.configure("Section.TLabel", font=("Segoe UI", 10, "bold"),
+                        foreground=COLOR_ACCENT)
+        style.configure("FieldLabel.TLabel", font=("Segoe UI", 9),
+                        foreground=COLOR_TEXT_SEC)
+        style.configure("Status.TLabel", font=("Segoe UI", 9),
+                        foreground=COLOR_TEXT_SEC)
+        style.configure("Accent.TButton", font=("Segoe UI", 10, "bold"))
+
+    def _make_card(self, parent, **pack_kw):
+        card = ttk.Frame(parent, style="Card.TFrame", padding=16)
+        card.pack(fill=tk.X, padx=2, pady=(0, 12), **pack_kw)
+        return card
+
+    def _section_header(self, parent, text, row=None):
+        lbl = ttk.Label(parent, text=text, style="Section.TLabel")
+        if row is not None:
+            lbl.grid(row=row, column=0, columnspan=6, sticky=tk.W, pady=(0, 8))
+        else:
+            lbl.pack(anchor=tk.W, pady=(0, 8))
+        return lbl
+
     def _build_ui(self):
-        outer = ttk.Frame(self, padding=14)
+        # ── Scrollable outer container ────────────────────────────────────────
+        outer = ttk.Frame(self, padding=(20, 16, 20, 12))
         outer.pack(fill=tk.BOTH, expand=True)
 
-        title = ttk.Label(
+        # ── Header ────────────────────────────────────────────────────────────
+        header = ttk.Frame(outer)
+        header.pack(fill=tk.X, pady=(0, 16))
+
+        ttk.Label(
+            header,
+            text="BK7258 Terminal Video Converter",
+            style="Header.TLabel",
+        ).pack(side=tk.LEFT)
+
+        ver_label = ttk.Label(header, text=f"v{APP_VERSION}",
+                              font=("Segoe UI", 10), foreground=COLOR_TEXT_SEC)
+        ver_label.pack(side=tk.LEFT, padx=(8, 0), pady=(6, 0))
+
+        ttk.Label(
             outer,
-            text=f"BK7258 Terminal Video Converter v{APP_VERSION}",
-            font=("Segoe UI", 16, "bold"),
-        )
-        title.pack(anchor=tk.W)
+            text="MP4 ► MJPEG / Baseline JPEG / YUV422 / no audio",
+            style="Subtitle.TLabel",
+        ).pack(anchor=tk.W, pady=(0, 14))
 
-        subtitle = ttk.Label(
-            outer,
-            text="Output profile: MP4 / MJPEG / Baseline JPEG / YUV422 / 480x480 / no audio",
-        )
-        subtitle.pack(anchor=tk.W, pady=(2, 12))
+        ttk.Separator(outer, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=(0, 14))
 
-        file_frame = ttk.LabelFrame(outer, text="Files", padding=10)
-        file_frame.pack(fill=tk.X)
-        file_frame.columnconfigure(1, weight=1)
+        # ── Files card ────────────────────────────────────────────────────────
+        file_card = self._make_card(outer)
+        self._section_header(file_card, "📂  Files")
 
-        ttk.Label(file_frame, text="Input MP4").grid(row=0, column=0, sticky=tk.W, padx=(0, 8), pady=4)
-        ttk.Entry(file_frame, textvariable=self.input_var).grid(row=0, column=1, sticky=tk.EW, pady=4)
-        ttk.Button(file_frame, text="Browse", command=self._browse_input).grid(row=0, column=2, padx=(8, 0), pady=4)
+        file_grid = ttk.Frame(file_card, style="CardInner.TFrame")
+        file_grid.pack(fill=tk.X)
+        file_grid.columnconfigure(1, weight=1)
 
-        ttk.Label(file_frame, text="Output MP4").grid(row=1, column=0, sticky=tk.W, padx=(0, 8), pady=4)
-        ttk.Entry(file_frame, textvariable=self.output_var).grid(row=1, column=1, sticky=tk.EW, pady=4)
-        ttk.Button(file_frame, text="Save As", command=self._browse_output).grid(row=1, column=2, padx=(8, 0), pady=4)
+        ttk.Label(file_grid, text="Input MP4", style="FieldLabel.TLabel").grid(
+            row=0, column=0, sticky=tk.W, padx=(0, 12), pady=6)
+        ttk.Entry(file_grid, textvariable=self.input_var, font=("Segoe UI", 9)).grid(
+            row=0, column=1, sticky=tk.EW, pady=6, ipady=3)
+        ttk.Button(file_grid, text="Browse…", command=self._browse_input,
+                   width=10).grid(row=0, column=2, padx=(10, 0), pady=6)
 
-        options = ttk.LabelFrame(outer, text="Terminal Profile", padding=10)
-        options.pack(fill=tk.X, pady=(12, 0))
+        ttk.Label(file_grid, text="Output MP4", style="FieldLabel.TLabel").grid(
+            row=1, column=0, sticky=tk.W, padx=(0, 12), pady=6)
+        ttk.Entry(file_grid, textvariable=self.output_var, font=("Segoe UI", 9)).grid(
+            row=1, column=1, sticky=tk.EW, pady=6, ipady=3)
+        ttk.Button(file_grid, text="Save As…", command=self._browse_output,
+                   width=10).grid(row=1, column=2, padx=(10, 0), pady=6)
 
+        # ── Terminal Profile card ─────────────────────────────────────────────
+        profile_card = self._make_card(outer)
+        self._section_header(profile_card, "⚙  Terminal Profile")
+
+        options = ttk.Frame(profile_card, style="CardInner.TFrame")
+        options.pack(fill=tk.X)
         for col in range(6):
-            options.columnconfigure(col, weight=1)
+            options.columnconfigure(col, weight=1, uniform="opt")
 
-        ttk.Label(options, text="Width").grid(row=0, column=0, sticky=tk.W)
-        ttk.Spinbox(options, from_=2, to=4096, increment=2, textvariable=self.width_var, width=8).grid(row=1, column=0, sticky=tk.W)
+        fields = [
+            ("Width",          self.width_var,      2, 4096, 2,   8),
+            ("Height",         self.height_var,     2, 4096, 2,   8),
+            ("FPS",            self.fps_var,       20,   25, 1,   8),
+            ("Quality",        self.quality_var,    1,   95, 1,   8),
+        ]
+        for i, (label, var, lo, hi, step, w) in enumerate(fields):
+            ttk.Label(options, text=label, style="FieldLabel.TLabel").grid(
+                row=0, column=i, sticky=tk.W, padx=(0, 8), pady=(0, 4))
+            ttk.Spinbox(options, from_=lo, to=hi, increment=step,
+                        textvariable=var, width=w, font=("Segoe UI", 9)).grid(
+                row=1, column=i, sticky=tk.W, padx=(0, 8), pady=(0, 8))
 
-        ttk.Label(options, text="Height").grid(row=0, column=1, sticky=tk.W)
-        ttk.Spinbox(options, from_=2, to=4096, increment=2, textvariable=self.height_var, width=8).grid(row=1, column=1, sticky=tk.W)
-
-        ttk.Label(options, text="FPS").grid(row=0, column=2, sticky=tk.W)
-        ttk.Spinbox(options, from_=20, to=25, increment=1, textvariable=self.fps_var, width=8).grid(row=1, column=2, sticky=tk.W)
-
-        ttk.Label(options, text="Quality").grid(row=0, column=3, sticky=tk.W)
-        ttk.Spinbox(options, from_=1, to=95, increment=1, textvariable=self.quality_var, width=8).grid(row=1, column=3, sticky=tk.W)
-
-        ttk.Label(options, text="Resize").grid(row=0, column=4, sticky=tk.W)
+        ttk.Label(options, text="Resize", style="FieldLabel.TLabel").grid(
+            row=0, column=4, sticky=tk.W, padx=(0, 8), pady=(0, 4))
         ttk.Combobox(
-            options,
-            values=("fit", "crop", "stretch"),
-            textvariable=self.resize_mode_var,
-            width=10,
-            state="readonly",
-        ).grid(row=1, column=4, sticky=tk.W)
+            options, values=("fit", "crop", "stretch"),
+            textvariable=self.resize_mode_var, width=10, state="readonly",
+            font=("Segoe UI", 9),
+        ).grid(row=1, column=4, sticky=tk.W, padx=(0, 8), pady=(0, 8))
 
-        ttk.Label(options, text="Max Frame KB").grid(row=0, column=5, sticky=tk.W)
-        ttk.Spinbox(options, from_=1, to=512, increment=1, textvariable=self.max_frame_kb_var, width=10).grid(row=1, column=5, sticky=tk.W)
+        ttk.Label(options, text="Max Frame KB", style="FieldLabel.TLabel").grid(
+            row=0, column=5, sticky=tk.W, pady=(0, 4))
+        ttk.Spinbox(options, from_=1, to=512, increment=1,
+                    textvariable=self.max_frame_kb_var, width=10,
+                    font=("Segoe UI", 9)).grid(
+            row=1, column=5, sticky=tk.W, pady=(0, 8))
 
-        limits = ttk.Frame(options)
-        limits.grid(row=2, column=0, columnspan=6, sticky=tk.EW, pady=(12, 0))
+        # ── Limits row ────────────────────────────────────────────────────────
+        ttk.Separator(profile_card, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=(4, 10))
+
+        limits = ttk.Frame(profile_card, style="CardInner.TFrame")
+        limits.pack(fill=tk.X)
         limits.columnconfigure(1, weight=1)
         limits.columnconfigure(3, weight=1)
 
-        ttk.Label(limits, text="Max Duration (sec, optional)").grid(row=0, column=0, sticky=tk.W, padx=(0, 8))
-        ttk.Entry(limits, textvariable=self.max_duration_var, width=14).grid(row=0, column=1, sticky=tk.W)
-        ttk.Label(limits, text="Max File Size KB (optional)").grid(row=0, column=2, sticky=tk.W, padx=(24, 8))
-        ttk.Entry(limits, textvariable=self.max_size_var, width=14).grid(row=0, column=3, sticky=tk.W)
+        ttk.Label(limits, text="Max Duration (sec)", style="FieldLabel.TLabel").grid(
+            row=0, column=0, sticky=tk.W, padx=(0, 8))
+        ttk.Entry(limits, textvariable=self.max_duration_var, width=14,
+                  font=("Segoe UI", 9)).grid(row=0, column=1, sticky=tk.W, ipady=2)
+        ttk.Label(limits, text="Max File Size (KB)", style="FieldLabel.TLabel").grid(
+            row=0, column=2, sticky=tk.W, padx=(28, 8))
+        ttk.Entry(limits, textvariable=self.max_size_var, width=14,
+                  font=("Segoe UI", 9)).grid(row=0, column=3, sticky=tk.W, ipady=2)
 
+        # ── Action bar ────────────────────────────────────────────────────────
         actions = ttk.Frame(outer)
-        actions.pack(fill=tk.X, pady=(12, 0))
-        self.convert_btn = ttk.Button(actions, text="Convert", command=self._start_convert)
+        actions.pack(fill=tk.X, pady=(0, 12))
+
+        self.convert_btn = ttk.Button(
+            actions, text="▶  Convert", command=self._start_convert,
+            style="Accent.TButton", width=14)
         self.convert_btn.pack(side=tk.LEFT)
-        self.open_folder_btn = ttk.Button(actions, text="Open Output Folder", command=self._open_output_folder, state=tk.DISABLED)
-        self.open_folder_btn.pack(side=tk.LEFT, padx=(8, 0))
 
-        self.progress = ttk.Progressbar(actions, mode="determinate", maximum=100)
-        self.progress.pack(side=tk.RIGHT, fill=tk.X, expand=True, padx=(12, 0))
+        self.open_folder_btn = ttk.Button(
+            actions, text="📁  Open Folder", command=self._open_output_folder,
+            state=tk.DISABLED, width=14)
+        self.open_folder_btn.pack(side=tk.LEFT, padx=(10, 0))
 
-        log_frame = ttk.LabelFrame(outer, text="Log", padding=8)
-        log_frame.pack(fill=tk.BOTH, expand=True, pady=(12, 0))
-        log_frame.rowconfigure(0, weight=1)
-        log_frame.columnconfigure(0, weight=1)
+        self.progress = ttk.Progressbar(actions, mode="determinate", maximum=100,
+                                        length=200)
+        self.progress.pack(side=tk.RIGHT, fill=tk.X, expand=True, padx=(20, 0))
 
-        self.log_text = tk.Text(log_frame, height=16, wrap=tk.WORD, state=tk.DISABLED)
-        self.log_text.grid(row=0, column=0, sticky=tk.NSEW)
-        scroll = ttk.Scrollbar(log_frame, orient=tk.VERTICAL, command=self.log_text.yview)
-        scroll.grid(row=0, column=1, sticky=tk.NS)
+        # ── Log card ──────────────────────────────────────────────────────────
+        log_card = ttk.Frame(outer, style="Card.TFrame", padding=12)
+        log_card.pack(fill=tk.BOTH, expand=True)
+        log_card.rowconfigure(1, weight=1)
+        log_card.columnconfigure(0, weight=1)
+
+        self._section_header(log_card, "📋  Log", row=0)
+
+        self.log_text = tk.Text(
+            log_card, height=12, wrap=tk.WORD, state=tk.DISABLED,
+            bg=COLOR_LOG_BG, fg=COLOR_LOG_FG,
+            font=("Cascadia Code", 9), insertbackground=COLOR_LOG_FG,
+            selectbackground=COLOR_ACCENT, selectforeground="#ffffff",
+            relief=tk.FLAT, padx=10, pady=8,
+            borderwidth=0,
+        )
+        self.log_text.grid(row=1, column=0, sticky=tk.NSEW)
+
+        scroll = ttk.Scrollbar(log_card, orient=tk.VERTICAL,
+                               command=self.log_text.yview)
+        scroll.grid(row=1, column=1, sticky=tk.NS)
         self.log_text.configure(yscrollcommand=scroll.set)
 
-        status = ttk.Label(outer, textvariable=self.status_var)
-        status.pack(anchor=tk.W, pady=(8, 0))
+        # ── Status bar ────────────────────────────────────────────────────────
+        status_bar = ttk.Frame(outer)
+        status_bar.pack(fill=tk.X, pady=(8, 0))
+
+        self.status_dot = tk.Canvas(status_bar, width=10, height=10,
+                                    highlightthickness=0, bg=COLOR_BG)
+        self.status_dot.pack(side=tk.LEFT, padx=(0, 6))
+        self._draw_status_dot(COLOR_SUCCESS)
+
+        ttk.Label(status_bar, textvariable=self.status_var,
+                  style="Status.TLabel").pack(side=tk.LEFT)
+
+    def _draw_status_dot(self, color):
+        self.status_dot.delete("all")
+        self.status_dot.create_oval(1, 1, 9, 9, fill=color, outline=color)
 
     def _browse_input(self):
         path = filedialog.askopenfilename(
@@ -259,6 +380,7 @@ class ConverterApp(tk.Tk):
         self.open_folder_btn.configure(state=tk.DISABLED)
         self.convert_btn.configure(state=tk.DISABLED)
         self.status_var.set("Converting...")
+        self._draw_status_dot(COLOR_ACCENT)
         self.progress.configure(value=0)
 
         self.worker = threading.Thread(target=self._run_convert, args=(params,), daemon=True)
@@ -357,12 +479,14 @@ class ConverterApp(tk.Tk):
         self.convert_btn.configure(state=tk.NORMAL)
         if ok:
             self.progress.configure(value=100)
-            self.status_var.set("Done")
+            self.status_var.set("Done — conversion complete")
+            self._draw_status_dot(COLOR_SUCCESS)
             self.open_folder_btn.configure(state=tk.NORMAL)
             messagebox.showinfo(APP_TITLE, "Conversion complete.")
         else:
             self.progress.configure(value=0)
-            self.status_var.set("Failed")
+            self.status_var.set("Failed — check the log for details")
+            self._draw_status_dot(COLOR_DANGER)
             messagebox.showerror(APP_TITLE, "Conversion failed. Check the log for details.")
 
     def _open_output_folder(self):

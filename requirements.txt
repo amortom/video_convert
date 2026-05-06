@@ -1,2 +1,3 @@
 opencv-python
 Pillow
+sv_ttk
