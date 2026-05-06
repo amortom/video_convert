@@ -303,8 +303,7 @@ class ConverterApp(CTk):
 
     def _worker_command(self, params):
         if getattr(sys, "frozen", False):
-            worker = os.path.join(os.path.dirname(sys.executable), "BK7258ConverterWorker.exe")
-            cmd = [worker]
+            cmd = [sys.executable, "--worker"]
         else:
             script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mp4_converter.py")
             cmd = [sys.executable, "-u", script]
@@ -395,5 +394,11 @@ class ConverterApp(CTk):
         self.btn_start_convert.configure(text="Convert", fg_color="#FF4D4F", hover_color="#E03131", command=self._start_convert)
 
 if __name__ == "__main__":
-    app = ConverterApp()
-    app.mainloop()
+    if len(sys.argv) > 1 and sys.argv[1] == "--worker":
+        # Worker mode: remove --worker flag, pass remaining args to mp4_converter
+        sys.argv = [sys.argv[0]] + sys.argv[2:]
+        from mp4_converter import main as worker_main
+        worker_main()
+    else:
+        app = ConverterApp()
+        app.mainloop()

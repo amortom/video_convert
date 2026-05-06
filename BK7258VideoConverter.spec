@@ -9,13 +9,13 @@ a = Analysis(
         (r'D:\tools\python\lib\site-packages\customtkinter', 'customtkinter/'),
         (r'D:\tools\python\lib\site-packages\tkinterdnd2', 'tkinterdnd2/')
     ],
-    hiddenimports=['sv_ttk', 'tkinterdnd2', 'customtkinter'],
+    hiddenimports=['sv_ttk', 'tkinterdnd2', 'customtkinter', 'mp4_converter', 'cv2', 'PIL'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['cv2', 'numpy', 'scipy', 'PIL', 'matplotlib'],
+    excludes=['scipy', 'matplotlib'],
     noarchive=False,
-    optimize=2,
+    optimize=0,
 )
 pyz = PYZ(a.pure)
 
