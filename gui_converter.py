@@ -1,388 +1,291 @@
-#!/usr/bin/env python3
-"""Tkinter GUI for the BK7258 MP4 -> MJPEG YUV422 converter."""
-
 import os
-import queue
-import re
-import subprocess
 import sys
 import threading
-import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
-
-try:
-    import sv_ttk
-    HAS_SV_TTK = True
-except ImportError:
-    HAS_SV_TTK = False
-
+import queue
+import subprocess
+import re
+import customtkinter as ctk
+from tkinter import filedialog, messagebox
+from tkinterdnd2 import TkinterDnD, DND_FILES
 
 APP_VERSION = "1.0.0"
-APP_TITLE = f"BK7258 MP4(MJPEG) Converter v{APP_VERSION}"
+APP_TITLE = f"BK7258 Video Converter"
 OUTPUT_SUFFIX = "_bk7258_mjpeg_yuv422.mp4"
+
+# Default parameters
 TERMINAL_DEFAULT_WIDTH = 480
 TERMINAL_DEFAULT_HEIGHT = 480
 TERMINAL_DEFAULT_FPS = 25
 TERMINAL_DEFAULT_QUALITY = 85
 TERMINAL_DEFAULT_MAX_FRAME_KB = 96
 TERMINAL_DEFAULT_MIN_QUALITY = 50
+
 PROGRESS_RE = re.compile(r"\((\d+)%\)")
 
+# Wrapper to support both CustomTkinter and TkinterDnD2
+class CTk(ctk.CTk, TkinterDnD.DnDWrapper):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.TkdndVersion = TkinterDnD._require(self)
 
-# ─── Color palette ────────────────────────────────────────────────────────────
-COLOR_BG         = "#f5f6fa"
-COLOR_CARD_BG    = "#ffffff"
-COLOR_ACCENT     = "#0078d4"
-COLOR_ACCENT_HOV = "#106ebe"
-COLOR_SUCCESS    = "#107c10"
-COLOR_DANGER     = "#d13438"
-COLOR_TEXT       = "#1a1a1a"
-COLOR_TEXT_SEC   = "#5f6368"
-COLOR_LOG_BG     = "#1e1e2e"
-COLOR_LOG_FG     = "#cdd6f4"
-COLOR_BORDER     = "#e0e0e0"
-
-
-class ConverterApp(tk.Tk):
+class ConverterApp(CTk):
     def __init__(self):
         super().__init__()
         self.title(APP_TITLE)
-        self.geometry("850x700")
-        self.minsize(780, 640)
-        self.configure(bg=COLOR_BG)
-
-        if HAS_SV_TTK:
-            sv_ttk.set_theme("light")
-
+        self.geometry("900x650")
+        self.minsize(800, 600)
+        
+        # Modern appearance setup
+        ctk.set_appearance_mode("Light")
+        ctk.set_default_color_theme("blue")
+        
         self.log_queue = queue.Queue()
         self.worker = None
-        self.output_path = None
-
+        self.input_file = None
+        self.output_file = None
+        
         self._build_vars()
-        self._apply_styles()
         self._build_ui()
         self.after(100, self._drain_log_queue)
 
     def _build_vars(self):
-        self.input_var = tk.StringVar()
-        self.output_var = tk.StringVar()
-        self.width_var = tk.IntVar(value=TERMINAL_DEFAULT_WIDTH)
-        self.height_var = tk.IntVar(value=TERMINAL_DEFAULT_HEIGHT)
-        self.fps_var = tk.IntVar(value=TERMINAL_DEFAULT_FPS)
-        self.quality_var = tk.IntVar(value=TERMINAL_DEFAULT_QUALITY)
-        self.resize_mode_var = tk.StringVar(value="fit")
-        self.max_frame_kb_var = tk.IntVar(value=TERMINAL_DEFAULT_MAX_FRAME_KB)
-        self.min_quality_var = tk.IntVar(value=TERMINAL_DEFAULT_MIN_QUALITY)
-        self.max_duration_var = tk.StringVar()
-        self.max_size_var = tk.StringVar()
-        self.status_var = tk.StringVar(value="Ready")
-
-    def _apply_styles(self):
-        style = ttk.Style(self)
-        style.configure("Card.TFrame", background=COLOR_CARD_BG)
-        style.configure("CardInner.TFrame", background=COLOR_CARD_BG)
-        style.configure("Header.TLabel", font=("Segoe UI", 18, "bold"),
-                        foreground=COLOR_TEXT)
-        style.configure("Subtitle.TLabel", font=("Segoe UI", 9),
-                        foreground=COLOR_TEXT_SEC)
-        style.configure("Section.TLabel", font=("Segoe UI", 10, "bold"),
-                        foreground=COLOR_ACCENT)
-        style.configure("FieldLabel.TLabel", font=("Segoe UI", 9),
-                        foreground=COLOR_TEXT_SEC)
-        style.configure("Status.TLabel", font=("Segoe UI", 9),
-                        foreground=COLOR_TEXT_SEC)
-        style.configure("Accent.TButton", font=("Segoe UI", 10, "bold"))
-
-    def _make_card(self, parent, **pack_kw):
-        card = ttk.Frame(parent, style="Card.TFrame", padding=16)
-        card.pack(fill=tk.X, padx=2, pady=(0, 12), **pack_kw)
-        return card
-
-    def _section_header(self, parent, text, row=None):
-        lbl = ttk.Label(parent, text=text, style="Section.TLabel")
-        if row is not None:
-            lbl.grid(row=row, column=0, columnspan=6, sticky=tk.W, pady=(0, 8))
-        else:
-            lbl.pack(anchor=tk.W, pady=(0, 8))
-        return lbl
+        self.width_var = ctk.StringVar(value=str(TERMINAL_DEFAULT_WIDTH))
+        self.height_var = ctk.StringVar(value=str(TERMINAL_DEFAULT_HEIGHT))
+        self.fps_var = ctk.StringVar(value=str(TERMINAL_DEFAULT_FPS))
+        self.quality_var = ctk.StringVar(value=str(TERMINAL_DEFAULT_QUALITY))
+        self.resize_mode_var = ctk.StringVar(value="fit")
+        self.max_frame_kb_var = ctk.StringVar(value=str(TERMINAL_DEFAULT_MAX_FRAME_KB))
+        self.min_quality_var = ctk.StringVar(value=str(TERMINAL_DEFAULT_MIN_QUALITY))
+        self.max_duration_var = ctk.StringVar(value="")
+        self.max_size_var = ctk.StringVar(value="")
 
     def _build_ui(self):
-        # ── Scrollable outer container ────────────────────────────────────────
-        outer = ttk.Frame(self, padding=(20, 16, 20, 12))
-        outer.pack(fill=tk.BOTH, expand=True)
+        # Configure grid layout (1 row, 2 columns)
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_columnconfigure(1, weight=1)
 
-        # ── Header ────────────────────────────────────────────────────────────
-        header = ttk.Frame(outer)
-        header.pack(fill=tk.X, pady=(0, 16))
+        # --- 1. Sidebar ---
+        self.sidebar_frame = ctk.CTkFrame(self, width=200, corner_radius=0, fg_color="#F8F9FA")
+        self.sidebar_frame.grid(row=0, column=0, sticky="nsew")
+        self.sidebar_frame.grid_rowconfigure(4, weight=1)
 
-        ttk.Label(
-            header,
-            text="BK7258 Terminal Video Converter",
-            style="Header.TLabel",
-        ).pack(side=tk.LEFT)
+        # App Logo / Title
+        self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="BK7258\nConverter", font=ctk.CTkFont(size=22, weight="bold"), text_color="#1E1E1E")
+        self.logo_label.grid(row=0, column=0, padx=20, pady=(30, 40))
 
-        ver_label = ttk.Label(header, text=f"v{APP_VERSION}",
-                              font=("Segoe UI", 10), foreground=COLOR_TEXT_SEC)
-        ver_label.pack(side=tk.LEFT, padx=(8, 0), pady=(6, 0))
+        # Nav Buttons
+        self.btn_nav_convert = ctk.CTkButton(self.sidebar_frame, text=" 🎬   Convert Video", fg_color="transparent", text_color="#333333", hover_color="#E9ECEF", anchor="w", font=ctk.CTkFont(size=14, weight="bold"), command=lambda: self.select_frame("convert"))
+        self.btn_nav_convert.grid(row=1, column=0, padx=10, pady=5, sticky="ew")
 
-        ttk.Label(
-            outer,
-            text="MP4 ► MJPEG / Baseline JPEG / YUV422 / no audio",
-            style="Subtitle.TLabel",
-        ).pack(anchor=tk.W, pady=(0, 14))
+        self.btn_nav_settings = ctk.CTkButton(self.sidebar_frame, text=" ⚙️   Terminal Settings", fg_color="transparent", text_color="#333333", hover_color="#E9ECEF", anchor="w", font=ctk.CTkFont(size=14), command=lambda: self.select_frame("settings"))
+        self.btn_nav_settings.grid(row=2, column=0, padx=10, pady=5, sticky="ew")
 
-        ttk.Separator(outer, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=(0, 14))
+        self.btn_nav_log = ctk.CTkButton(self.sidebar_frame, text=" 📋   Console Log", fg_color="transparent", text_color="#333333", hover_color="#E9ECEF", anchor="w", font=ctk.CTkFont(size=14), command=lambda: self.select_frame("log"))
+        self.btn_nav_log.grid(row=3, column=0, padx=10, pady=5, sticky="ew")
 
-        # ── Files card ────────────────────────────────────────────────────────
-        file_card = self._make_card(outer)
-        self._section_header(file_card, "📂  Files")
+        # Version label at the bottom
+        self.version_label = ctk.CTkLabel(self.sidebar_frame, text=f"Version {APP_VERSION}", text_color="#999999")
+        self.version_label.grid(row=5, column=0, padx=20, pady=20, sticky="sw")
 
-        file_grid = ttk.Frame(file_card, style="CardInner.TFrame")
-        file_grid.pack(fill=tk.X)
-        file_grid.columnconfigure(1, weight=1)
+        # --- Main Frames Container ---
+        self.frames = {}
+        
+        # --- 2. Convert Frame ---
+        self.frame_convert = ctk.CTkFrame(self, corner_radius=0, fg_color="white")
+        self.frame_convert.grid_rowconfigure(1, weight=1)
+        self.frame_convert.grid_columnconfigure(0, weight=1)
+        
+        # Toolbar (Top) - Just for spacing now
+        self.toolbar = ctk.CTkFrame(self.frame_convert, fg_color="white", corner_radius=0, height=20)
+        self.toolbar.grid(row=0, column=0, sticky="ew", padx=20, pady=10)
+        
+        # Big Drag and Drop Area
+        self.drop_area = ctk.CTkFrame(self.frame_convert, corner_radius=20, fg_color="#F8F9FA", border_width=2)
+        # Using a solid border color to simulate dashed line since solid is natively supported
+        self.drop_area.configure(border_color="#E2E5E9") 
+        self.drop_area.grid(row=1, column=0, sticky="nsew", padx=50, pady=(0, 50))
+        self.drop_area.grid_rowconfigure(0, weight=1)
+        self.drop_area.grid_rowconfigure(1, weight=1)
+        self.drop_area.grid_rowconfigure(2, weight=1)
+        self.drop_area.grid_columnconfigure(0, weight=1)
+        
+        # Register Drag and Drop
+        self.drop_area.drop_target_register(DND_FILES)
+        self.drop_area.dnd_bind('<<Drop>>', self._on_drop)
+        
+        # Center UI container for drop area
+        self.drop_center_ui = ctk.CTkFrame(self.drop_area, fg_color="transparent")
+        self.drop_center_ui.grid(row=1, column=0)
+        
+        self.lbl_drop_icon = ctk.CTkLabel(self.drop_center_ui, text="🎬", font=ctk.CTkFont(size=48), text_color="#CED4DA")
+        self.lbl_drop_icon.pack(pady=(0, 15))
+        
+        self.lbl_drop_text = ctk.CTkLabel(self.drop_center_ui, text="Drag files here to start conversion", font=ctk.CTkFont(size=16), text_color="#868E96")
+        self.lbl_drop_text.pack(pady=(0, 25))
+        
+        # Prominent Red Add Button
+        self.btn_center_add = ctk.CTkButton(self.drop_center_ui, text="➕ Add File", font=ctk.CTkFont(size=15, weight="bold"), fg_color="#FF4D4F", hover_color="#E03131", text_color="white", width=160, height=45, corner_radius=25, command=self._browse_input)
+        self.btn_center_add.pack()
+        
+        # Item view (hidden by default, shown when file selected)
+        self.item_frame = ctk.CTkFrame(self.drop_area, fg_color="white", corner_radius=10, border_width=1, border_color="#DEE2E6")
+        self.item_frame.grid_columnconfigure(1, weight=1)
+        
+        # Item Icon and Text
+        self.lbl_filename = ctk.CTkLabel(self.item_frame, text="", font=ctk.CTkFont(size=16, weight="bold"), text_color="#1E1E1E")
+        self.lbl_filename.grid(row=0, column=0, columnspan=2, padx=20, pady=(20, 5), sticky="w")
+        self.lbl_format = ctk.CTkLabel(self.item_frame, text="Target: MJPEG / 480x480 / YUV422", text_color="#6C757D", font=ctk.CTkFont(size=12))
+        self.lbl_format.grid(row=1, column=0, columnspan=2, padx=20, pady=(0, 20), sticky="w")
+        
+        # Big Red Action Button
+        self.btn_start_convert = ctk.CTkButton(self.item_frame, text="Convert", font=ctk.CTkFont(size=14, weight="bold"), fg_color="#FF4D4F", hover_color="#E03131", text_color="white", width=120, height=40, command=self._start_convert)
+        self.btn_start_convert.grid(row=0, column=2, rowspan=2, padx=20)
+        
+        # Progress UI
+        self.progress = ctk.CTkProgressBar(self.item_frame, mode="determinate", progress_color="#FF4D4F")
+        self.progress.set(0)
+        
+        self.lbl_status = ctk.CTkLabel(self.item_frame, text="Ready", text_color="#6C757D", font=ctk.CTkFont(size=12))
 
-        ttk.Label(file_grid, text="Input MP4", style="FieldLabel.TLabel").grid(
-            row=0, column=0, sticky=tk.W, padx=(0, 12), pady=6)
-        ttk.Entry(file_grid, textvariable=self.input_var, font=("Segoe UI", 9)).grid(
-            row=0, column=1, sticky=tk.EW, pady=6, ipady=3)
-        ttk.Button(file_grid, text="Browse…", command=self._browse_input,
-                   width=10).grid(row=0, column=2, padx=(10, 0), pady=6)
-
-        ttk.Label(file_grid, text="Output MP4", style="FieldLabel.TLabel").grid(
-            row=1, column=0, sticky=tk.W, padx=(0, 12), pady=6)
-        ttk.Entry(file_grid, textvariable=self.output_var, font=("Segoe UI", 9)).grid(
-            row=1, column=1, sticky=tk.EW, pady=6, ipady=3)
-        ttk.Button(file_grid, text="Save As…", command=self._browse_output,
-                   width=10).grid(row=1, column=2, padx=(10, 0), pady=6)
-
-        # ── Terminal Profile card ─────────────────────────────────────────────
-        profile_card = self._make_card(outer)
-        self._section_header(profile_card, "⚙  Terminal Profile")
-
-        options = ttk.Frame(profile_card, style="CardInner.TFrame")
-        options.pack(fill=tk.X)
-        for col in range(6):
-            options.columnconfigure(col, weight=1, uniform="opt")
-
-        fields = [
-            ("Width",          self.width_var,      2, 4096, 2,   8),
-            ("Height",         self.height_var,     2, 4096, 2,   8),
-            ("FPS",            self.fps_var,       20,   25, 1,   8),
-            ("Quality",        self.quality_var,    1,   95, 1,   8),
+        # --- 3. Settings Frame ---
+        self.frame_settings = ctk.CTkScrollableFrame(self, corner_radius=0, fg_color="white")
+        self.frame_settings.grid_columnconfigure(1, weight=1)
+        
+        ctk.CTkLabel(self.frame_settings, text="Terminal Profile Settings", font=ctk.CTkFont(size=22, weight="bold"), text_color="#1E1E1E").grid(row=0, column=0, columnspan=2, sticky="w", padx=40, pady=(40, 20))
+        
+        settings_fields = [
+            ("Width", self.width_var),
+            ("Height", self.height_var),
+            ("FPS", self.fps_var),
+            ("Quality (1-95)", self.quality_var),
+            ("Max Frame KB", self.max_frame_kb_var),
+            ("Min Quality", self.min_quality_var),
+            ("Max Duration (sec)", self.max_duration_var),
+            ("Max File Size (KB)", self.max_size_var)
         ]
-        for i, (label, var, lo, hi, step, w) in enumerate(fields):
-            ttk.Label(options, text=label, style="FieldLabel.TLabel").grid(
-                row=0, column=i, sticky=tk.W, padx=(0, 8), pady=(0, 4))
-            ttk.Spinbox(options, from_=lo, to=hi, increment=step,
-                        textvariable=var, width=w, font=("Segoe UI", 9)).grid(
-                row=1, column=i, sticky=tk.W, padx=(0, 8), pady=(0, 8))
+        
+        for i, (lbl, var) in enumerate(settings_fields):
+            ctk.CTkLabel(self.frame_settings, text=lbl, text_color="#333333", font=ctk.CTkFont(size=14)).grid(row=i+1, column=0, sticky="w", padx=40, pady=12)
+            entry = ctk.CTkEntry(self.frame_settings, textvariable=var, width=300, fg_color="#F8F9FA", border_color="#DEE2E6")
+            entry.grid(row=i+1, column=1, sticky="w", padx=20, pady=12)
+            
+        ctk.CTkLabel(self.frame_settings, text="Resize Mode", text_color="#333333", font=ctk.CTkFont(size=14)).grid(row=len(settings_fields)+1, column=0, sticky="w", padx=40, pady=12)
+        ctk.CTkOptionMenu(self.frame_settings, values=["fit", "crop", "stretch"], variable=self.resize_mode_var, width=300, fg_color="#F8F9FA", button_color="#E9ECEF", text_color="#333333").grid(row=len(settings_fields)+1, column=1, sticky="w", padx=20, pady=12)
 
-        ttk.Label(options, text="Resize", style="FieldLabel.TLabel").grid(
-            row=0, column=4, sticky=tk.W, padx=(0, 8), pady=(0, 4))
-        ttk.Combobox(
-            options, values=("fit", "crop", "stretch"),
-            textvariable=self.resize_mode_var, width=10, state="readonly",
-            font=("Segoe UI", 9),
-        ).grid(row=1, column=4, sticky=tk.W, padx=(0, 8), pady=(0, 8))
+        # --- 4. Log Frame ---
+        self.frame_log = ctk.CTkFrame(self, corner_radius=0, fg_color="white")
+        self.frame_log.grid_rowconfigure(1, weight=1)
+        self.frame_log.grid_columnconfigure(0, weight=1)
+        
+        ctk.CTkLabel(self.frame_log, text="Console Log", font=ctk.CTkFont(size=22, weight="bold"), text_color="#1E1E1E").grid(row=0, column=0, sticky="w", padx=40, pady=(40, 20))
+        
+        self.log_text = ctk.CTkTextbox(self.frame_log, font=("Cascadia Code", 13), fg_color="#1E1E2E", text_color="#CDD6F4", corner_radius=10)
+        self.log_text.grid(row=1, column=0, sticky="nsew", padx=40, pady=(0, 40))
 
-        ttk.Label(options, text="Max Frame KB", style="FieldLabel.TLabel").grid(
-            row=0, column=5, sticky=tk.W, pady=(0, 4))
-        ttk.Spinbox(options, from_=1, to=512, increment=1,
-                    textvariable=self.max_frame_kb_var, width=10,
-                    font=("Segoe UI", 9)).grid(
-            row=1, column=5, sticky=tk.W, pady=(0, 8))
+        # Register Frames
+        self.frames["convert"] = self.frame_convert
+        self.frames["settings"] = self.frame_settings
+        self.frames["log"] = self.frame_log
+        
+        # Show default frame
+        self.select_frame("convert")
 
-        # ── Limits row ────────────────────────────────────────────────────────
-        ttk.Separator(profile_card, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=(4, 10))
+    def select_frame(self, name):
+        # Update button highlights (Active styling: Red text + light red bg)
+        active_fg = "#FFF0F0"
+        active_tc = "#FF4D4F"
+        inactive_fg = "transparent"
+        inactive_tc = "#333333"
 
-        limits = ttk.Frame(profile_card, style="CardInner.TFrame")
-        limits.pack(fill=tk.X)
-        limits.columnconfigure(1, weight=1)
-        limits.columnconfigure(3, weight=1)
+        self.btn_nav_convert.configure(fg_color=active_fg if name == "convert" else inactive_fg, text_color=active_tc if name == "convert" else inactive_tc)
+        self.btn_nav_settings.configure(fg_color=active_fg if name == "settings" else inactive_fg, text_color=active_tc if name == "settings" else inactive_tc)
+        self.btn_nav_log.configure(fg_color=active_fg if name == "log" else inactive_fg, text_color=active_tc if name == "log" else inactive_tc)
+        
+        # Toggle frame visibility
+        for f_name, frame in self.frames.items():
+            if f_name == name:
+                frame.grid(row=0, column=1, sticky="nsew")
+            else:
+                frame.grid_forget()
 
-        ttk.Label(limits, text="Max Duration (sec)", style="FieldLabel.TLabel").grid(
-            row=0, column=0, sticky=tk.W, padx=(0, 8))
-        ttk.Entry(limits, textvariable=self.max_duration_var, width=14,
-                  font=("Segoe UI", 9)).grid(row=0, column=1, sticky=tk.W, ipady=2)
-        ttk.Label(limits, text="Max File Size (KB)", style="FieldLabel.TLabel").grid(
-            row=0, column=2, sticky=tk.W, padx=(28, 8))
-        ttk.Entry(limits, textvariable=self.max_size_var, width=14,
-                  font=("Segoe UI", 9)).grid(row=0, column=3, sticky=tk.W, ipady=2)
-
-        # ── Action bar ────────────────────────────────────────────────────────
-        actions = ttk.Frame(outer)
-        actions.pack(fill=tk.X, pady=(0, 12))
-
-        self.convert_btn = ttk.Button(
-            actions, text="▶  Convert", command=self._start_convert,
-            style="Accent.TButton", width=14)
-        self.convert_btn.pack(side=tk.LEFT)
-
-        self.open_folder_btn = ttk.Button(
-            actions, text="📁  Open Folder", command=self._open_output_folder,
-            state=tk.DISABLED, width=14)
-        self.open_folder_btn.pack(side=tk.LEFT, padx=(10, 0))
-
-        self.progress = ttk.Progressbar(actions, mode="determinate", maximum=100,
-                                        length=200)
-        self.progress.pack(side=tk.RIGHT, fill=tk.X, expand=True, padx=(20, 0))
-
-        # ── Log card ──────────────────────────────────────────────────────────
-        log_card = ttk.Frame(outer, style="Card.TFrame", padding=12)
-        log_card.pack(fill=tk.BOTH, expand=True)
-        log_card.rowconfigure(1, weight=1)
-        log_card.columnconfigure(0, weight=1)
-
-        self._section_header(log_card, "📋  Log", row=0)
-
-        self.log_text = tk.Text(
-            log_card, height=12, wrap=tk.WORD, state=tk.DISABLED,
-            bg=COLOR_LOG_BG, fg=COLOR_LOG_FG,
-            font=("Cascadia Code", 9), insertbackground=COLOR_LOG_FG,
-            selectbackground=COLOR_ACCENT, selectforeground="#ffffff",
-            relief=tk.FLAT, padx=10, pady=8,
-            borderwidth=0,
-        )
-        self.log_text.grid(row=1, column=0, sticky=tk.NSEW)
-
-        scroll = ttk.Scrollbar(log_card, orient=tk.VERTICAL,
-                               command=self.log_text.yview)
-        scroll.grid(row=1, column=1, sticky=tk.NS)
-        self.log_text.configure(yscrollcommand=scroll.set)
-
-        # ── Status bar ────────────────────────────────────────────────────────
-        status_bar = ttk.Frame(outer)
-        status_bar.pack(fill=tk.X, pady=(8, 0))
-
-        self.status_dot = tk.Canvas(status_bar, width=10, height=10,
-                                    highlightthickness=0, bg=COLOR_BG)
-        self.status_dot.pack(side=tk.LEFT, padx=(0, 6))
-        self._draw_status_dot(COLOR_SUCCESS)
-
-        ttk.Label(status_bar, textvariable=self.status_var,
-                  style="Status.TLabel").pack(side=tk.LEFT)
-
-    def _draw_status_dot(self, color):
-        self.status_dot.delete("all")
-        self.status_dot.create_oval(1, 1, 9, 9, fill=color, outline=color)
+    def _on_drop(self, event):
+        files = self.drop_area.tk.splitlist(event.data)
+        if files:
+            self._set_input_file(files[0])
 
     def _browse_input(self):
         path = filedialog.askopenfilename(
             title="Select input MP4",
             filetypes=(("MP4 files", "*.mp4"), ("Video files", "*.mp4 *.mov *.avi"), ("All files", "*.*")),
         )
-        if not path:
-            return
-
-        self.input_var.set(path)
-        base, _ = os.path.splitext(path)
-        self.output_var.set(base + OUTPUT_SUFFIX)
-
-    def _browse_output(self):
-        initial = self.output_var.get() or "output_bk7258_mjpeg_yuv422.mp4"
-        path = filedialog.asksaveasfilename(
-            title="Save output MP4",
-            defaultextension=".mp4",
-            initialfile=os.path.basename(initial),
-            initialdir=os.path.dirname(initial) or os.getcwd(),
-            filetypes=(("MP4 files", "*.mp4"), ("All files", "*.*")),
-        )
         if path:
-            self.output_var.set(path)
+            self._set_input_file(path)
 
-    def _parse_optional_float(self, value, label):
-        value = value.strip()
-        if not value:
-            return None
-        try:
-            parsed = float(value)
-        except ValueError as exc:
-            raise ValueError(f"{label} must be a number") from exc
-        if parsed <= 0:
-            raise ValueError(f"{label} must be greater than 0")
-        return parsed
-
-    def _parse_optional_int(self, value, label):
-        value = value.strip()
-        if not value:
-            return None
-        try:
-            parsed = int(value)
-        except ValueError as exc:
-            raise ValueError(f"{label} must be an integer") from exc
-        if parsed <= 0:
-            raise ValueError(f"{label} must be greater than 0")
-        return parsed
+    def _set_input_file(self, path):
+        self.input_file = path
+        base, _ = os.path.splitext(path)
+        self.output_file = base + OUTPUT_SUFFIX
+        
+        # Hide the big central prompt container and show the item card
+        self.drop_center_ui.grid_forget()
+        self.item_frame.grid(row=0, column=0, sticky="ew", padx=20, pady=20)
+        self.lbl_filename.configure(text=f"🎥 {os.path.basename(path)}")
+        
+        # Reset progress UI
+        self.progress.grid_forget()
+        self.lbl_status.grid_forget()
+        self.progress.set(0)
+        self.lbl_status.configure(text="Ready", text_color="#6C757D")
+        self.btn_start_convert.configure(state="normal", text="Convert", fg_color="#FF4D4F", hover_color="#E03131", command=self._start_convert)
 
     def _validate_inputs(self):
-        input_path = self.input_var.get().strip()
-        output_path = self.output_var.get().strip()
-        if not input_path:
-            raise ValueError("Please select an input MP4 file")
-        if not os.path.isfile(input_path):
-            raise ValueError("Input file does not exist")
-        if not output_path:
-            raise ValueError("Please select an output MP4 path")
-        if os.path.abspath(input_path) == os.path.abspath(output_path):
-            raise ValueError("Output path must be different from input path")
-
-        width = int(self.width_var.get())
-        height = int(self.height_var.get())
-        fps = int(self.fps_var.get())
-        quality = int(self.quality_var.get())
-        max_frame_kb = int(self.max_frame_kb_var.get())
-        min_quality = int(self.min_quality_var.get())
-
-        if width <= 0 or height <= 0 or width % 2 or height % 2:
-            raise ValueError("Width and height must be positive even numbers")
-        if fps < 20 or fps > 25:
-            raise ValueError("FPS must be in range 20-25")
-        if quality < 1 or quality > 95:
-            raise ValueError("Quality must be in range 1-95")
-        if min_quality < 1 or min_quality > quality:
-            raise ValueError("Minimum quality must be in range 1..quality")
-        if max_frame_kb <= 0:
-            raise ValueError("Max Frame KB must be greater than 0")
-
-        max_duration = self._parse_optional_float(self.max_duration_var.get(), "Max Duration")
-        max_size = self._parse_optional_int(self.max_size_var.get(), "Max File Size")
-
-        out_dir = os.path.dirname(output_path)
-        if out_dir:
-            os.makedirs(out_dir, exist_ok=True)
+        if not self.input_file or not os.path.isfile(self.input_file):
+            raise ValueError("Input file does not exist.")
+            
+        try:
+            w = int(self.width_var.get())
+            h = int(self.height_var.get())
+            fps = int(self.fps_var.get())
+            q = int(self.quality_var.get())
+            mf = int(self.max_frame_kb_var.get())
+            mq = int(self.min_quality_var.get())
+        except ValueError:
+            raise ValueError("All settings fields must contain valid numbers.")
+            
+        md = self.max_duration_var.get().strip()
+        ms = self.max_size_var.get().strip()
+        
+        md = float(md) if md else None
+        ms = int(ms) if ms else None
 
         return {
-            "input_path": input_path,
-            "output_path": output_path,
-            "target_w": width,
-            "target_h": height,
-            "fps": fps,
-            "quality": quality,
+            "input_path": self.input_file,
+            "output_path": self.output_file,
+            "target_w": w, "target_h": h, "fps": fps, "quality": q,
             "resize_mode": self.resize_mode_var.get(),
-            "max_size_kb": max_size,
-            "max_duration": max_duration,
-            "max_frame_kb": max_frame_kb,
-            "min_quality": min_quality,
+            "max_frame_kb": mf, "min_quality": mq,
+            "max_duration": md, "max_size_kb": ms
         }
 
     def _start_convert(self):
         if self.worker and self.worker.is_alive():
             return
-
+            
         try:
             params = self._validate_inputs()
-        except ValueError as exc:
-            messagebox.showerror(APP_TITLE, str(exc))
+        except ValueError as e:
+            messagebox.showerror(APP_TITLE, str(e))
             return
-
-        self.output_path = params["output_path"]
-        self._clear_log()
-        self.open_folder_btn.configure(state=tk.DISABLED)
-        self.convert_btn.configure(state=tk.DISABLED)
-        self.status_var.set("Converting...")
-        self._draw_status_dot(COLOR_ACCENT)
-        self.progress.configure(value=0)
-
+            
+        # Update UI state for converting
+        self.log_text.delete("1.0", "end")
+        self.btn_start_convert.configure(state="disabled", text="Converting...", fg_color="#ADB5BD", hover_color="#ADB5BD")
+        
+        self.progress.grid(row=2, column=0, columnspan=3, sticky="ew", padx=20, pady=(10, 5))
+        self.lbl_status.grid(row=3, column=0, columnspan=3, sticky="w", padx=20, pady=(0, 20))
+        self.lbl_status.configure(text="Converting... 0%", text_color="#107C10")
+        self.progress.set(0)
+        
         self.worker = threading.Thread(target=self._run_convert, args=(params,), daemon=True)
         self.worker.start()
 
@@ -395,12 +298,9 @@ class ConverterApp(tk.Tk):
             cmd = [sys.executable, "-u", script]
 
         cmd.extend([
-            params["input_path"],
-            "-o", params["output_path"],
-            "-W", str(params["target_w"]),
-            "-H", str(params["target_h"]),
-            "-f", str(params["fps"]),
-            "-q", str(params["quality"]),
+            params["input_path"], "-o", params["output_path"],
+            "-W", str(params["target_w"]), "-H", str(params["target_h"]),
+            "-f", str(params["fps"]), "-q", str(params["quality"]),
             "-m", params["resize_mode"],
             "--max-frame-kb", str(params["max_frame_kb"]),
             "--min-quality", str(params["min_quality"]),
@@ -410,7 +310,6 @@ class ConverterApp(tk.Tk):
             cmd.extend(["--max-size", str(params["max_size_kb"])])
         if params["max_duration"] is not None:
             cmd.extend(["--max-duration", str(params["max_duration"])])
-
         return cmd
 
     def _run_convert(self, params):
@@ -420,20 +319,13 @@ class ConverterApp(tk.Tk):
             self.log_queue.put(("done", False))
             return
 
-        creationflags = 0
-        if os.name == "nt":
-            creationflags = subprocess.CREATE_NO_WINDOW
+        creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
 
         try:
             process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                stdin=subprocess.DEVNULL,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                creationflags=creationflags,
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL, text=True, encoding="utf-8",
+                errors="replace", creationflags=creationflags,
             )
             assert process.stdout is not None
             for line in process.stdout:
@@ -450,56 +342,32 @@ class ConverterApp(tk.Tk):
             while True:
                 kind, payload = self.log_queue.get_nowait()
                 if kind == "log":
-                    self._append_log(payload)
+                    match = PROGRESS_RE.search(payload)
+                    if match:
+                        pct = int(match.group(1))
+                        self.progress.set(pct / 100.0)
+                        self.lbl_status.configure(text=f"Converting... {pct}%")
+                    self.log_text.insert("end", payload)
+                    self.log_text.see("end")
                 elif kind == "done":
-                    self._on_done(bool(payload))
+                    if payload:
+                        self.progress.set(1.0)
+                        self.lbl_status.configure(text="Conversion Completed!", text_color="#107C10")
+                        self.btn_start_convert.configure(state="normal", text="Open Folder", fg_color="#107C10", hover_color="#0B5A0B", command=self._open_folder)
+                    else:
+                        self.lbl_status.configure(text="Failed! Check Log.", text_color="#D13438")
+                        self.btn_start_convert.configure(state="normal", text="Retry", fg_color="#FF4D4F", hover_color="#E03131", command=self._start_convert)
         except queue.Empty:
             pass
-
         self.after(100, self._drain_log_queue)
-
-    def _append_log(self, text):
-        match = PROGRESS_RE.search(text)
-        if match:
-            pct = int(match.group(1))
-            self.progress.configure(value=max(0, min(100, pct)))
-            self.status_var.set(f"Converting... {pct}%")
-
-        self.log_text.configure(state=tk.NORMAL)
-        self.log_text.insert(tk.END, text)
-        self.log_text.see(tk.END)
-        self.log_text.configure(state=tk.DISABLED)
-
-    def _clear_log(self):
-        self.log_text.configure(state=tk.NORMAL)
-        self.log_text.delete("1.0", tk.END)
-        self.log_text.configure(state=tk.DISABLED)
-
-    def _on_done(self, ok):
-        self.convert_btn.configure(state=tk.NORMAL)
-        if ok:
-            self.progress.configure(value=100)
-            self.status_var.set("Done — conversion complete")
-            self._draw_status_dot(COLOR_SUCCESS)
-            self.open_folder_btn.configure(state=tk.NORMAL)
-            messagebox.showinfo(APP_TITLE, "Conversion complete.")
-        else:
-            self.progress.configure(value=0)
-            self.status_var.set("Failed — check the log for details")
-            self._draw_status_dot(COLOR_DANGER)
-            messagebox.showerror(APP_TITLE, "Conversion failed. Check the log for details.")
-
-    def _open_output_folder(self):
-        path = self.output_path or self.output_var.get().strip()
-        folder = os.path.dirname(path)
-        if folder and os.path.isdir(folder):
-            subprocess.Popen(["explorer", folder])
-
-
-def main():
-    app = ConverterApp()
-    app.mainloop()
-
+        
+    def _open_folder(self):
+        if self.output_file:
+            folder = os.path.dirname(self.output_file)
+            if folder and os.path.isdir(folder):
+                subprocess.Popen(["explorer", folder])
+        self.btn_start_convert.configure(text="Convert", fg_color="#FF4D4F", hover_color="#E03131", command=self._start_convert)
 
 if __name__ == "__main__":
-    main()
+    app = ConverterApp()
+    app.mainloop()
