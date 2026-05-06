@@ -269,8 +269,15 @@ public class MainActivity extends Activity {
                     throw new IOException("FFmpeg failed\n" + safeLogs(session));
                 }
 
-                updateStatus("Checking JPEG profile...");
                 List<File> frames = listFrames(framesDir);
+
+                updateStatus("Fixing JPEG sampling...");
+                int fixedCount = fixFrameSampling(frames, qscale);
+                if (fixedCount > 0) {
+                    appendLog("Re-encoded " + fixedCount + " frame(s) for standard 4:2:2 sampling");
+                }
+
+                updateStatus("Checking JPEG profile...");
                 validateFrames(frames);
 
                 updateStatus("Building MP4 container...");
@@ -336,7 +343,8 @@ public class MainActivity extends Activity {
             JpegInspector.JpegInfo info = JpegInspector.inspect(frame);
             if (!info.valid || !info.baseline || info.progressive
                     || info.width != TARGET_WIDTH || info.height != TARGET_HEIGHT
-                    || !"yuv422".equals(info.subsampling)) {
+                    || !"yuv422".equals(info.subsampling)
+                    || info.yH != 2 || info.yV != 1 || info.cH != 1 || info.cV != 1) {
                 throw new IOException("JPEG profile check failed: " + frame.getName()
                         + " valid=" + info.valid
                         + " baseline=" + info.baseline
@@ -349,6 +357,19 @@ public class MainActivity extends Activity {
 
         appendLog("JPEG profile: baseline / yuv422 / 480x480");
         appendLog("Max JPEG frame: " + maxSize + " bytes");
+    }
+
+    private int fixFrameSampling(List<File> frames, int qscale) throws IOException {
+        int quality = Math.max(70, 100 - qscale * 5);
+        int count = 0;
+        for (File frame : frames) {
+            JpegInspector.JpegInfo info = JpegInspector.inspect(frame);
+            if (JpegSamplingFixer.needsFix(info)) {
+                JpegSamplingFixer.fix(frame, quality);
+                count++;
+            }
+        }
+        return count;
     }
 
     private int selectedFps() {

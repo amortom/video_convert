@@ -20,6 +20,16 @@ android/**/build/
 *.apk
 *.aab
 
+# iOS / Xcode build output
+ios/Pods/
+ios/Podfile.lock
+ios/**/*.xcworkspace/
+ios/**/DerivedData/
+ios/**/*.xcuserstate
+ios/**/*.xcuserdata/
+ios/**/*.ipa
+ios/**/*.dSYM/
+
 # Local generated folders
 BK7258VideoConverter/
 
