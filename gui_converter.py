@@ -8,7 +8,7 @@ import customtkinter as ctk
 from tkinter import filedialog, messagebox
 from tkinterdnd2 import TkinterDnD, DND_FILES
 
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 APP_TITLE = f"BK7258 Video Converter"
 OUTPUT_SUFFIX = "_bk7258_mjpeg_yuv422.mp4"
 
