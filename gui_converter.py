@@ -6,6 +6,14 @@ import subprocess
 import re
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
+
+# Set environment variables for single-executable compatibility BEFORE importing TkinterDnD
+if getattr(sys, 'frozen', False):
+    base_path = sys._MEIPASS
+    os.environ["TKDND_LIBRARY"] = os.path.join(base_path, "tkinterdnd2", "tkdnd")
+else:
+    base_path = os.path.dirname(os.path.abspath(__file__))
+
 from tkinterdnd2 import TkinterDnD, DND_FILES
 
 APP_VERSION = "1.1.0"

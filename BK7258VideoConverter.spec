@@ -1,44 +1,41 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-
 a = Analysis(
     ['D:\\code\\convert\\gui_converter.py'],
     pathex=[],
     binaries=[],
-    datas=[('TERMINAL_FORMAT_SPEC.md', '.'), (r'D:\tools\python\lib\site-packages\sv_ttk', 'sv_ttk')],
-    hiddenimports=['sv_ttk'],
+    datas=[
+        ('TERMINAL_FORMAT_SPEC.md', '.'),
+        (r'D:\tools\python\lib\site-packages\customtkinter', 'customtkinter/'),
+        (r'D:\tools\python\lib\site-packages\tkinterdnd2', 'tkinterdnd2/')
+    ],
+    hiddenimports=['sv_ttk', 'tkinterdnd2', 'customtkinter'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=['cv2', 'numpy', 'scipy', 'PIL', 'matplotlib'],
     noarchive=False,
-    optimize=0,
+    optimize=2,
 )
 pyz = PYZ(a.pure)
 
 exe = EXE(
     pyz,
     a.scripts,
+    a.binaries,
+    a.datas,
     [],
-    exclude_binaries=True,
     name='BK7258VideoConverter',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-)
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.datas,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    name='BK7258VideoConverter',
 )
